@@ -190,17 +190,27 @@ async function uploadToGitHub(imageBuffer, filename, title, description, languag
 
 // Webhook verification
 app.get('/webhook', (req, res) => {
+  console.log('Webhook verification request received:', {
+    mode: req.query['hub.mode'],
+    token: req.query['hub.verify_token'] ? 'present' : 'missing',
+    challenge: req.query['hub.challenge']
+  });
+
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
   if (mode && token) {
     if (mode === 'subscribe' && token === process.env.VERIFY_TOKEN) {
-      console.log('Webhook verified');
+      console.log('Webhook verified successfully');
       res.status(200).send(challenge);
     } else {
+      console.log('Webhook verification failed - invalid token or mode');
       res.sendStatus(403);
     }
+  } else {
+    console.log('Webhook verification failed - missing parameters');
+    res.sendStatus(400);
   }
 });
 
