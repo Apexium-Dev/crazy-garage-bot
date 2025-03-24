@@ -2,11 +2,14 @@ services:
   - type: web
     name: whatsapp-gallery-bot
     env: node
+    rootDir: whatsapp-bot
     buildCommand: npm install
-    startCommand: cd whatsapp-bot && node index.js
+    startCommand: npm start
     envVars:
       - key: NODE_VERSION
         value: 14.0.0
       - key: PORT
         value: 3000
+      - key: NODE_ENV
+        value: production
     autoDeploy: true 

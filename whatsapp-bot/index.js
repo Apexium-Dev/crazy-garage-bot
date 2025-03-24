@@ -13,12 +13,27 @@ app.use(express.json());
 
 // Add health check endpoint
 app.get('/health', (req, res) => {
+  console.log('Health check endpoint called');
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Add root endpoint for basic testing
+app.get('/', (req, res) => {
+  console.log('Root endpoint called');
+  res.status(200).send('WhatsApp Gallery Bot is running!');
 });
 
 // WhatsApp API Configuration
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const WHATSAPP_PHONE_NUMBER_ID = '601831163014385';
+
+// Log configuration on startup
+console.log('Starting WhatsApp Gallery Bot with configuration:');
+console.log('- Environment:', process.env.NODE_ENV);
+console.log('- Port:', process.env.PORT);
+console.log('- WhatsApp Phone ID:', WHATSAPP_PHONE_NUMBER_ID);
+console.log('- Token available:', !!WHATSAPP_TOKEN);
+console.log('- GitHub Token available:', !!process.env.GITHUB_TOKEN);
 
 // GitHub Configuration
 const octokit = new Octokit({
