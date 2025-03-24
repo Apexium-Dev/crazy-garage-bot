@@ -11,6 +11,11 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
+// Add health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // WhatsApp API Configuration
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const WHATSAPP_PHONE_NUMBER_ID = '601831163014385';
