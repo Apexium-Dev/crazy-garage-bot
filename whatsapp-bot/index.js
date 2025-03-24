@@ -11,6 +11,23 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
+// Message rate limiting
+const messageTimestamps = new Map();
+const RATE_LIMIT_WINDOW = 2000; // 2 seconds between messages
+
+// Function to check rate limit
+function isRateLimited(sender) {
+  const lastMessageTime = messageTimestamps.get(sender) || 0;
+  const currentTime = Date.now();
+  
+  if (currentTime - lastMessageTime < RATE_LIMIT_WINDOW) {
+    return true;
+  }
+  
+  messageTimestamps.set(sender, currentTime);
+  return false;
+}
+
 // Add health check endpoint
 app.get('/health', (req, res) => {
   console.log('Health check endpoint called');
@@ -103,14 +120,16 @@ i18next.init({
   }
 });
 
-// Function to send WhatsApp messages
+// Function to send WhatsApp messages with rate limiting
 async function sendWhatsAppMessage(to, message) {
   try {
-    console.log('Attempting to send WhatsApp message:', {
-      to,
-      message,
-      phoneNumberId: WHATSAPP_PHONE_NUMBER_ID
-    });
+    // Check rate limit
+    if (isRateLimited(to)) {
+      console.log('Rate limited message to:', to);
+      return;
+    }
+
+    console.log('Sending message to:', to);
 
     const response = await fetch(`https://graph.facebook.com/v17.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`, {
       method: 'POST',
@@ -127,23 +146,16 @@ async function sendWhatsAppMessage(to, message) {
     });
     
     const responseData = await response.text();
-    console.log('WhatsApp API response:', {
-      status: response.status,
-      statusText: response.statusText,
-      data: responseData
-    });
-
+    
     if (!response.ok) {
       throw new Error(`WhatsApp API error: ${response.status} - ${responseData}`);
     }
 
-    console.log('Successfully sent WhatsApp message to:', to);
+    console.log('Message sent successfully to:', to);
   } catch (error) {
-    console.error('Error sending WhatsApp message:', {
+    console.error('Error sending message:', {
       error: error.message,
-      stack: error.stack,
-      to,
-      message
+      to
     });
   }
 }
@@ -237,47 +249,48 @@ app.get('/webhook', (req, res) => {
 // Handle incoming messages
 app.post('/webhook', async (req, res) => {
   try {
-    console.log('Received webhook POST request:', {
-      body: req.body,
-      headers: req.headers
-    });
-
     const { entry } = req.body;
 
-    if (!entry || !entry[0].changes || !entry[0].changes[0].value.messages) {
-      console.log('No valid message in webhook payload:', req.body);
+    // Early return if no valid message
+    if (!entry?.[0]?.changes?.[0]?.value?.messages?.[0]) {
       return res.sendStatus(200);
     }
 
     const message = entry[0].changes[0].value.messages[0];
-    const sender = message.from;
     
-    console.log('Processing message:', {
-      from: sender,
-      type: message.type,
-      content: message.type === 'text' ? message.text.body : 'media'
-    });
+    // Only process messages, not status updates
+    if (!message.type || message.type === 'status') {
+      return res.sendStatus(200);
+    }
+
+    const sender = message.from;
 
     // Initialize user state if not exists
     if (!userStates.has(sender)) {
-      console.log('New user, initializing state for:', sender);
       userStates.set(sender, {
         state: States.INIT,
         language: 'en',
-        data: {}
+        data: {},
+        lastInteraction: Date.now()
       });
       await sendWhatsAppMessage(sender, i18next.t('welcome', { lng: 'en' }));
       return res.sendStatus(200);
     }
 
     const userState = userStates.get(sender);
-    console.log('Current user state:', {
-      sender,
-      state: userState.state,
-      language: userState.language
-    });
+    
+    // Update last interaction time
+    userState.lastInteraction = Date.now();
 
-    // Handle different states
+    // Clean up old sessions (older than 30 minutes)
+    const TIMEOUT = 30 * 60 * 1000; // 30 minutes
+    for (const [userId, state] of userStates.entries()) {
+      if (Date.now() - state.lastInteraction > TIMEOUT) {
+        userStates.delete(userId);
+      }
+    }
+
+    // Process message based on state
     switch (userState.state) {
       case States.INIT:
         if (message.type === 'text') {
