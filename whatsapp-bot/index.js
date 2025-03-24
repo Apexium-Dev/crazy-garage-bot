@@ -326,6 +326,7 @@ app.post('/webhook', async (req, res) => {
         if (message.type === 'image') {
           const beforePhoto = await downloadMedia(message.image.id);
           userState.data.beforePhoto = beforePhoto;
+          userState.data.timestamp = Date.now(); // Store timestamp when receiving before photo
           userState.state = States.WAITING_AFTER_PHOTO;
           await sendWhatsAppMessage(sender, i18next.t('askAfterPhoto', { lng: userState.language }));
         }
@@ -339,7 +340,10 @@ app.post('/webhook', async (req, res) => {
           // Process and upload both photos
           await sendWhatsAppMessage(sender, i18next.t('processing', { lng: userState.language }));
           
-          const timestamp = Date.now();
+          // Use the stored timestamp from the before photo
+          const timestamp = userState.data.timestamp;
+          
+          // Upload before photo first
           await uploadToGitHub(
             userState.data.beforePhoto,
             `before_${timestamp}`,
@@ -348,8 +352,9 @@ app.post('/webhook', async (req, res) => {
             userState.language
           );
           
+          // Upload after photo with same timestamp
           await uploadToGitHub(
-            userState.data.afterPhoto,
+            afterPhoto,
             `after_${timestamp}`,
             userState.data.title,
             userState.data.description,
