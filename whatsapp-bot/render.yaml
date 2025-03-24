@@ -3,7 +3,7 @@ services:
     name: whatsapp-gallery-bot
     env: node
     buildCommand: npm install
-    startCommand: node index.js
+    startCommand: cd whatsapp-bot && node index.js
     envVars:
       - key: NODE_VERSION
         value: 14.0.0
