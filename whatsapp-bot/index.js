@@ -106,6 +106,12 @@ i18next.init({
 // Function to send WhatsApp messages
 async function sendWhatsAppMessage(to, message) {
   try {
+    console.log('Attempting to send WhatsApp message:', {
+      to,
+      message,
+      phoneNumberId: WHATSAPP_PHONE_NUMBER_ID
+    });
+
     const response = await fetch(`https://graph.facebook.com/v17.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`, {
       method: 'POST',
       headers: {
@@ -120,11 +126,25 @@ async function sendWhatsAppMessage(to, message) {
       })
     });
     
+    const responseData = await response.text();
+    console.log('WhatsApp API response:', {
+      status: response.status,
+      statusText: response.statusText,
+      data: responseData
+    });
+
     if (!response.ok) {
-      throw new Error(`WhatsApp API error: ${response.status}`);
+      throw new Error(`WhatsApp API error: ${response.status} - ${responseData}`);
     }
+
+    console.log('Successfully sent WhatsApp message to:', to);
   } catch (error) {
-    console.error('Error sending WhatsApp message:', error);
+    console.error('Error sending WhatsApp message:', {
+      error: error.message,
+      stack: error.stack,
+      to,
+      message
+    });
   }
 }
 
@@ -217,17 +237,30 @@ app.get('/webhook', (req, res) => {
 // Handle incoming messages
 app.post('/webhook', async (req, res) => {
   try {
+    console.log('Received webhook POST request:', {
+      body: req.body,
+      headers: req.headers
+    });
+
     const { entry } = req.body;
 
     if (!entry || !entry[0].changes || !entry[0].changes[0].value.messages) {
+      console.log('No valid message in webhook payload:', req.body);
       return res.sendStatus(200);
     }
 
     const message = entry[0].changes[0].value.messages[0];
     const sender = message.from;
     
+    console.log('Processing message:', {
+      from: sender,
+      type: message.type,
+      content: message.type === 'text' ? message.text.body : 'media'
+    });
+
     // Initialize user state if not exists
     if (!userStates.has(sender)) {
+      console.log('New user, initializing state for:', sender);
       userStates.set(sender, {
         state: States.INIT,
         language: 'en',
@@ -238,6 +271,11 @@ app.post('/webhook', async (req, res) => {
     }
 
     const userState = userStates.get(sender);
+    console.log('Current user state:', {
+      sender,
+      state: userState.state,
+      language: userState.language
+    });
 
     // Handle different states
     switch (userState.state) {
